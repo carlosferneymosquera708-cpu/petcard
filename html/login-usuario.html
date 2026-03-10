@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PetCard – Iniciar Sesión</title>
+
+<style>
+/* shared.css */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+.navbar {
+  position: fixed; top: 0; left: 0; width: 100%; z-index: 100;
+  background: #fff; padding: 16px 32px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  display: flex; align-items: center;
+}
+.nav-logo {
+  font-size: 1.4rem; font-weight: 800; color: #2d6a4f;
+  text-decoration: none; letter-spacing: 2px;
+}
+
+/* login-usuario.css */
+body {
+  flex-direction: row;
+  background: #f7faf9;
+}
+.right-panel {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 100px 40px 40px;
+  background: #fff;
+  min-height: 100vh;
+}
+.form-wrapper {
+  width: 100%; max-width: 400px;
+}
+.form-wrapper h1 {
+  font-size: 1.8rem; font-weight: 700; color: #1a1a2e; margin-bottom: 6px;
+}
+.subtitle {
+  color: #666; font-size: 0.95rem; margin-bottom: 28px;
+}
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group select,
+.form-group input[type="text"],
+.form-group input[type="password"] {
+  width: 100%; padding: 12px 16px;
+  border: 1.5px solid #dde3e0; border-radius: 10px;
+  font-size: 0.95rem; color: #333; background: #f7faf9;
+  outline: none; transition: border-color 0.2s;
+  appearance: none;
+}
+.form-group select:focus,
+.form-group input:focus {
+  border-color: #2d6a4f; background: #fff;
+}
+.form-group select { cursor: pointer; }
+.password-wrapper { position: relative; }
+.password-wrapper input { padding-right: 44px; }
+.eye-btn {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; color: #888; padding: 4px;
+  display: flex; align-items: center;
+}
+.eye-btn:hover { color: #2d6a4f; }
+.forgot-link {
+  display: block; text-align: right; font-size: 0.85rem;
+  color: #2d6a4f; text-decoration: none; margin-bottom: 20px;
+}
+.forgot-link:hover { text-decoration: underline; }
+.btn-ingresar {
+  width: 100%; padding: 13px; background: #2d6a4f; color: #fff;
+  border: none; border-radius: 10px; font-size: 1rem; font-weight: 600;
+  cursor: pointer; transition: background 0.2s, transform 0.1s;
+  margin-bottom: 16px;
+}
+.btn-ingresar:hover { background: #1f4d38; }
+.btn-ingresar:active { transform: scale(0.98); }
+.create-account {
+  text-align: center; font-size: 0.9rem; color: #555;
+}
+.create-account a {
+  color: #2d6a4f; font-weight: 600; text-decoration: none;
+}
+.create-account a:hover { text-decoration: underline; }
+.left-panel {
+  flex: 1; background: linear-gradient(135deg, #2d6a4f 0%, #52b788 100%);
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 40px;
+  position: relative; overflow: hidden;
+}
+.left-panel::before {
+  content: '🐾'; font-size: 180px; opacity: 0.12;
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+}
+.left-panel::after {
+  content: 'PETCARD'; font-size: 3rem; font-weight: 900;
+  color: rgba(255,255,255,0.18); letter-spacing: 8px;
+  position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+}
+.error-msg {
+  background: #fff0f0; border: 1px solid #ffcdd2; color: #c62828;
+  border-radius: 8px; padding: 10px 14px; font-size: 0.875rem;
+  margin-bottom: 14px; display: none;
+}
+.success-msg {
+  background: #f0fff4; border: 1px solid #b2dfdb; color: #1b5e20;
+  border-radius: 8px; padding: 10px 14px; font-size: 0.875rem;
+  margin-bottom: 14px; display: none;
+}
+@media (max-width: 768px) {
+  .left-panel { display: none; }
+  .right-panel { padding: 80px 24px 40px; }
+}
+</style>
+</head>
+
+<body>
+  <nav class="navbar">
+    <a href="./inicio.html" class="nav-logo">PETCARD</a>
+  </nav>
+
+  <div class="right-panel">
+    <div class="form-wrapper">
+      <h1>Bienvenido a PetCard</h1>
+      <p class="subtitle">Completa los siguientes campos</p>
+
+      <div class="error-msg" id="error-login"></div>
+      <div class="success-msg" id="success-login"></div>
+
+      <div class="form-group">
+        <select id="tipo-documento">
+          <option value="" disabled selected>Tipo de documento *</option>
+          <option value="cc">Cédula de Ciudadanía</option>
+          <option value="ce">Cédula de Extranjería</option>
+          <option value="ti">Tarjeta de Identidad</option>
+          <option value="pp">Pasaporte</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <input type="text" id="numero-documento" placeholder="Número de documento *" />
+      </div>
+
+      <div class="form-group password-wrapper">
+        <input type="password" id="contrasena" placeholder="Contraseña *" />
+        <button class="eye-btn" onclick="togglePassword()" aria-label="Mostrar contraseña">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+
+      <a href="#" class="forgot-link">¿Olvidaste tu Contraseña?</a>
+
+      <button class="btn-ingresar" id="btn-ingresar" onclick="handleLogin()">Ingresar</button>
+
+      <!-- ✅ CONEXIÓN: enlace hacia registro-usuario.html -->
+      <p class="create-account">¿No tienes cuenta? <a href="./registro-usuario.html">Crear cuenta</a></p>
+
+    </div>
+  </div>
+
+  <div class="left-panel">
+    <div class="illustration-container"></div>
+  </div>
+
+  <script>
+    function togglePassword() {
+      const input = document.getElementById('contrasena');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-login');
+      el.textContent = msg;
+      el.style.display = 'block';
+      document.getElementById('success-login').style.display = 'none';
+    }
+
+    function showSuccess(msg) {
+      const el = document.getElementById('success-login');
+      el.textContent = msg;
+      el.style.display = 'block';
+      document.getElementById('error-login').style.display = 'none';
+    }
+
+    function handleLogin() {
+      const tipoDoc   = document.getElementById('tipo-documento').value;
+      const numDoc    = document.getElementById('numero-documento').value.trim();
+      const password  = document.getElementById('contrasena').value;
+
+      // Validaciones
+      if (!tipoDoc) { showError('Por favor selecciona el tipo de documento.'); return; }
+      if (!numDoc)  { showError('Por favor ingresa tu número de documento.'); return; }
+      if (numDoc.length < 4) { showError('El número de documento no es válido.'); return; }
+      if (!password) { showError('Por favor ingresa tu contraseña.'); return; }
+      if (password.length < 6) { showError('La contraseña debe tener al menos 6 caracteres.'); return; }
+
+      // Verificar si el usuario existe en localStorage (registrado desde registro-usuario.html)
+      const usuarios = JSON.parse(localStorage.getItem('petcard_usuarios') || '[]');
+      const usuario  = usuarios.find(u => u.documento === numDoc && u.tipoDocumento === tipoDoc && u.password === password);
+
+      if (!usuario) {
+        showError('Credenciales incorrectas. Verifica tus datos o crea una cuenta.');
+        return;
+      }
+
+      showSuccess(`¡Bienvenido/a, ${usuario.nombre}! Redirigiendo...`);
+      localStorage.setItem('petcard_sesion', JSON.stringify(usuario));
+
+      // Redirigir tras 1.5 segundos
+      setTimeout(() => {
+        window.location.href = './inicio.html';
+      }, 1500);
+    }
+
+    // Permitir Enter para iniciar sesión
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') handleLogin();
+    });
+  </script>
+</body>
+</html>
