@@ -845,7 +845,6 @@ select option[value=""] {
   margin-bottom: 15px;
   color: #666;
 }
-=======
  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -1137,5 +1136,5 @@ select option[value=""] {
     margin-bottom: 15px;
     color: #666;
   }
->>>>>>> f4aaac926cbd23ad340f308519cda5e0ed2208ac
+
 </style>

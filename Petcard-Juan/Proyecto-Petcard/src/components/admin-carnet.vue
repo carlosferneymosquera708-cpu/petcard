@@ -1,3 +1,113 @@
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useAuth } from '../composables/useAuth'
+
+const { usuarioLogueado, cerrarSesion } = useAuth()
+const API = 'http://localhost:3001/api/vacunas'
+const API_MASCOTAS = 'http://localhost:3001/api/mascotas'
+const API_SERVICIOS = 'http://localhost:3001/api/servicios'
+
+const vacunas = ref([])
+const mascotas = ref([])
+const servicios = ref([])
+const busqueda = ref('')
+const filtroEstado = ref('Todos')
+const cargando = ref(false)
+const error = ref('')
+const mostrarModalNuevo = ref(false)
+const mostrarModalEditar = ref(false)
+const mostrarModalEliminar = ref(false)
+const vacunaSeleccionada = ref(null)
+const vacunaAEliminar = ref(null)
+
+const nuevaVacuna = ref({
+  ID_mascota: '', ID_servicio: '', Nombre_vacuna: '', Lote: '',
+  Fecha_aplicacion: '', Proxima_dosis: '', Estado: 'Pendiente', Observaciones: ''
+})
+
+onMounted(async () => {
+  await cargarVacunas()
+  await cargarMascotas()
+  await cargarServicios()
+})
+
+async function cargarVacunas() {
+  cargando.value = true
+  error.value = ''
+  try {
+    const res = await fetch(API)
+    if (!res.ok) throw new Error()
+    vacunas.value = await res.json()
+  } catch {
+    error.value = 'No se pudo conectar con el servidor.'
+  } finally {
+    cargando.value = false
+  }
+}
+
+async function cargarMascotas() {
+  try { const res = await fetch(API_MASCOTAS); mascotas.value = await res.json() } catch {}
+}
+async function cargarServicios() {
+  try { const res = await fetch(API_SERVICIOS); servicios.value = await res.json() } catch {}
+}
+
+const vacunasFiltradas = computed(() =>
+  vacunas.value.filter(v => {
+    const texto = `${v.Nombre_mascota} ${v.Nombre_vacuna}`.toLowerCase()
+    const coincide = texto.includes(busqueda.value.toLowerCase())
+    const coincideEstado = filtroEstado.value === 'Todos' || v.Estado === filtroEstado.value
+    return coincide && coincideEstado
+  })
+)
+
+function badgeClass(estado) {
+  if (estado === 'Completada') return 'badge badge-green'
+  if (estado === 'Pendiente') return 'badge badge-yellow'
+  return 'badge badge-gray'
+}
+
+function abrirEditar(v) { vacunaSeleccionada.value = { ...v }; mostrarModalEditar.value = true }
+
+async function guardarEdicion() {
+  try {
+    const res = await fetch(`${API}/${vacunaSeleccionada.value.ID_carnetVacunas}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(vacunaSeleccionada.value)
+    })
+    if (!res.ok) throw new Error()
+    await cargarVacunas()
+    mostrarModalEditar.value = false
+  } catch { alert('Error al guardar.') }
+}
+
+function confirmarEliminar(v) { vacunaAEliminar.value = v; mostrarModalEliminar.value = true }
+
+async function eliminarVacuna() {
+  try {
+    const res = await fetch(`${API}/${vacunaAEliminar.value.ID_carnetVacunas}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error()
+    await cargarVacunas()
+    mostrarModalEliminar.value = false
+  } catch { alert('Error al eliminar.') }
+}
+
+async function crearVacuna() {
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(nuevaVacuna.value)
+    })
+    if (!res.ok) throw new Error()
+    await cargarVacunas()
+    nuevaVacuna.value = { ID_mascota: '', ID_servicio: '', Nombre_vacuna: '', Lote: '', Fecha_aplicacion: '', Proxima_dosis: '', Estado: 'Pendiente', Observaciones: '' }
+    mostrarModalNuevo.value = false
+  } catch { alert('Error al crear el registro.') }
+}
+</script>
+
 <template>
   <nav class="navbar">
     <router-link to="/admin-inicio" class="nav-logo">
@@ -6,432 +116,164 @@
     </router-link>
     <ul class="nav-links" style="margin-left:1.5rem;">
       <li><router-link to="/admin-alimentacion">Alimentación</router-link></li>
-      <li><router-link to="/admin-carnet">Carnet de Vacunas</router-link></li>
+      <li><router-link to="/admin-carnet" class="active">Carnet de Vacunas</router-link></li>
       <li><router-link to="/admin-notificaciones">Notificaciones</router-link></li>
       <li><router-link to="/admin-servicios">Servicios</router-link></li>
       <li><router-link to="/admin-citas">Citas</router-link></li>
     </ul>
     <div class="nav-actions">
-      <span style="color: white; margin-right: 1rem; font-weight: 500;">{{ usuarioLogueado ? usuarioLogueado.Nombre : 'Admin' }}</span>
-      <router-link to="/admin-perfil" class="btn btn-outline-white btn-sm" title="Ver Perfil" style="text-decoration:none;display:inline-block;">👤</router-link>
+      <span style="color:white;margin-right:1rem;font-weight:500;">{{ usuarioLogueado?.Nombre || 'Admin' }}</span>
+      <router-link to="/admin-perfil" class="btn btn-outline-white btn-sm" style="text-decoration:none;display:inline-block;">👤</router-link>
       <button class="btn btn-danger btn-sm" @click="cerrarSesion">Cerrar Sesión</button>
     </div>
   </nav>
-  
-  <div class="admin-container">
-    <!-- Filtros -->
-    <div class="admin-header">
-      <div class="admin-controls">
-        <input
-          v-model="buscarTexto"
-          id="input-buscar"
-          type="text"
-          placeholder="Buscar mascota o vacuna..."
-          class="form-control"
-        />
-        <select v-model="filtroEstado" id="select-filtro" class="form-select">
-          <option value="Todos">Todos</option>
-          <option value="Pendiente">Pendiente</option>
-          <option value="Completada">Completada</option>
-        </select>
-        <button @click="abrirModalNuevo" id="btn-nuevo-registro" class="btn btn-primary">
-          Nuevo Registro
-        </button>
+
+  <div class="page-wrapper">
+    <div class="gestion-header">
+      <div>
+        <div class="gestion-title">Carnet de Vacunas</div>
+        <div class="gestion-sub">Administra los registros de vacunación de las mascotas</div>
+      </div>
+      <div class="gestion-btns">
+        <button class="btn btn-success btn-sm" @click="mostrarModalNuevo = true">+ Nuevo Registro</button>
       </div>
     </div>
 
-    <!-- Grid de registros -->
-    <div class="cards-grid-2">
-      <div v-if="registrosFiltrados.length === 0" class="empty-state">
-        No hay registros que mostrar
+    <div v-if="error" style="background:#fee2e2;color:#dc2626;padding:.75rem 1rem;border-radius:8px;margin-bottom:1rem;">⚠️ {{ error }}</div>
+
+    <div class="search-filter" style="margin-bottom:1.25rem;">
+      <div class="search-wrap">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Buscar mascota o vacuna..." v-model="busqueda"/>
       </div>
-      <div
-        v-for="registro in registrosFiltrados"
-        :key="registro.id"
-        class="admin-card"
-      >
+      <select class="filter-select" v-model="filtroEstado">
+        <option>Todos</option>
+        <option>Pendiente</option>
+        <option>Completada</option>
+      </select>
+    </div>
+
+    <div v-if="cargando" style="text-align:center;padding:2rem;color:#888;">Cargando registros...</div>
+    <div v-else-if="vacunasFiltradas.length === 0" style="text-align:center;padding:2rem;color:#888;">No se encontraron registros.</div>
+
+    <div v-else class="cards-grid-2">
+      <div class="admin-card" v-for="v in vacunasFiltradas" :key="v.ID_carnetVacunas">
         <div class="admin-card-header">
           <div>
-            <div class="admin-card-title">{{ registro.mascota }}</div>
-            <div class="admin-card-tipo">{{ registro.tipo }} - {{ registro.raza }}</div>
+            <div class="admin-card-title">{{ v.Nombre_mascota }}</div>
+            <div class="admin-card-tipo">{{ v.Nombre_servicio }}</div>
           </div>
-          <span class="badge" :class="getEstadoClass(registro.estado)">
-            {{ registro.estado }}
-          </span>
+          <span :class="badgeClass(v.Estado)">{{ (v.Estado || 'Pendiente').toUpperCase() }}</span>
         </div>
-
         <div class="admin-card-body">
-          <div class="detail">{{ registro.vacuna }}</div>
-          <div class="admin-card-meta">Lote: {{ registro.lote }}</div>
-          <div class="admin-card-meta">Aplicada: {{ registro.aplicada }}</div>
-          <div class="admin-card-meta">Próxima: {{ registro.proxima }}</div>
-          <div class="admin-card-meta">Veterinario: {{ registro.veterinario }}</div>
+          <div class="detail">{{ v.Nombre_vacuna }}</div>
+          <div class="admin-card-meta" v-if="v.Lote">Lote: {{ v.Lote }}</div>
+          <div class="admin-card-meta" v-if="v.Fecha_aplicacion">Aplicada: {{ v.Fecha_aplicacion?.slice(0,10) }}</div>
+          <div class="admin-card-meta" v-if="v.Proxima_dosis">Próxima: {{ v.Proxima_dosis?.slice(0,10) }}</div>
+          <div class="admin-card-meta" v-if="v.Observaciones">{{ v.Observaciones }}</div>
         </div>
-
         <div class="admin-card-actions">
-          <button @click="abrirModalEditar(registro)" class="btn btn-primary btn-sm">
-            Editar
-          </button>
-          <button @click="eliminarRegistro(registro.id)" class="btn btn-danger btn-sm">
-            Eliminar
-          </button>
+          <button class="btn btn-secondary btn-sm" @click="abrirEditar(v)">Editar</button>
+          <button class="btn btn-danger btn-sm" @click="confirmarEliminar(v)">Eliminar</button>
         </div>
       </div>
     </div>
 
-    <!-- Modal -->
-    <ModalRegistro
-      v-if="modalAbierto"
-      :registro-editar="registroEditando"
-      @guardar="guardarRegistro"
-      @cancelar="cerrarModal"
-    />
+    <footer class="footer" style="margin-top:2rem;">
+      <div class="footer-grid">
+        <div class="footer-brand"><span class="nav-logo" style="color:#fff;display:flex;">PetCard</span><p>Comprometidos con brindar toda la atención profesional.</p></div>
+        <div class="footer-col"><h4>Contacto</h4><p>+1 234 567 8901</p></div>
+        <div class="footer-col"><h4>Horarios</h4><p>Lun - Vie: 8:00 AM - 7:00 PM</p></div>
+      </div>
+      <div class="footer-bottom">© 2024 PetCard. Todos los derechos reservados.</div>
+    </footer>
+  </div>
+
+  <!-- Modal Nuevo Registro -->
+  <div v-if="mostrarModalNuevo" class="modal-overlay" @click.self="mostrarModalNuevo = false">
+    <div class="modal">
+      <h3>Nuevo Registro de Vacuna</h3>
+      <div class="modal-body">
+        <label>Mascota</label>
+        <select v-model="nuevaVacuna.ID_mascota">
+          <option value="" disabled>Selecciona mascota</option>
+          <option v-for="m in mascotas" :key="m.ID_mascota" :value="m.ID_mascota">{{ m.Nombre }} ({{ m.Especie }})</option>
+        </select>
+        <label>Servicio</label>
+        <select v-model="nuevaVacuna.ID_servicio">
+          <option value="" disabled>Selecciona servicio</option>
+          <option v-for="s in servicios" :key="s.ID_servicio" :value="s.ID_servicio">{{ s.Nombre }}</option>
+        </select>
+        <label>Nombre de la vacuna</label>
+        <input v-model="nuevaVacuna.Nombre_vacuna" placeholder="Ej: Antirrábica" />
+        <label>Lote</label>
+        <input v-model="nuevaVacuna.Lote" placeholder="Ej: ABC123" />
+        <label>Fecha de aplicación</label>
+        <input type="date" v-model="nuevaVacuna.Fecha_aplicacion" />
+        <label>Próxima dosis</label>
+        <input type="date" v-model="nuevaVacuna.Proxima_dosis" />
+        <label>Estado</label>
+        <select v-model="nuevaVacuna.Estado">
+          <option>Pendiente</option>
+          <option>Completada</option>
+        </select>
+        <label>Observaciones</label>
+        <textarea v-model="nuevaVacuna.Observaciones" rows="2"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" @click="mostrarModalNuevo = false">Cancelar</button>
+        <button class="btn btn-success btn-sm" @click="crearVacuna">Crear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Editar -->
+  <div v-if="mostrarModalEditar" class="modal-overlay" @click.self="mostrarModalEditar = false">
+    <div class="modal">
+      <h3>Editar Vacuna — {{ vacunaSeleccionada.Nombre_mascota }}</h3>
+      <div class="modal-body">
+        <label>Nombre de la vacuna</label>
+        <input v-model="vacunaSeleccionada.Nombre_vacuna" />
+        <label>Lote</label>
+        <input v-model="vacunaSeleccionada.Lote" />
+        <label>Fecha de aplicación</label>
+        <input type="date" v-model="vacunaSeleccionada.Fecha_aplicacion" />
+        <label>Próxima dosis</label>
+        <input type="date" v-model="vacunaSeleccionada.Proxima_dosis" />
+        <label>Estado</label>
+        <select v-model="vacunaSeleccionada.Estado">
+          <option>Pendiente</option>
+          <option>Completada</option>
+        </select>
+        <label>Observaciones</label>
+        <textarea v-model="vacunaSeleccionada.Observaciones" rows="2"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" @click="mostrarModalEditar = false">Cancelar</button>
+        <button class="btn btn-success btn-sm" @click="guardarEdicion">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Eliminar -->
+  <div v-if="mostrarModalEliminar" class="modal-overlay" @click.self="mostrarModalEliminar = false">
+    <div class="modal">
+      <h3>¿Eliminar registro?</h3>
+      <p>¿Eliminar la vacuna <strong>{{ vacunaAEliminar?.Nombre_vacuna }}</strong> de <strong>{{ vacunaAEliminar?.Nombre_mascota }}</strong>?</p>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" @click="mostrarModalEliminar = false">Cancelar</button>
+        <button class="btn btn-danger btn-sm" @click="eliminarVacuna">Eliminar</button>
+      </div>
+    </div>
   </div>
 </template>
 
-<script setup>
-import { ref, computed, watch } from 'vue'
-import { useAuth } from '../composables/useAuth'
-import ModalRegistro from './ModalRegistro.vue'
-
-const { usuarioLogueado, cerrarSesion } = useAuth()
-
-// Estado reactivo
-const registros = ref([])
-const buscarTexto = ref('')
-const filtroEstado = ref('Todos')
-const modalAbierto = ref(false)
-const registroEditando = ref(null)
-
-// Computed para registros filtrados
-const registrosFiltrados = computed(() => {
-  return registros.value.filter(registro => {
-    const coincideBusqueda =
-      registro.mascota.toLowerCase().includes(buscarTexto.value.toLowerCase()) ||
-      registro.vacuna.toLowerCase().includes(buscarTexto.value.toLowerCase())
-    
-    const coincideFiltro = filtroEstado.value === 'Todos' || registro.estado === filtroEstado.value
-    
-    return coincideBusqueda && coincideFiltro
-  })
-})
-
-// Watch para filtrado reactivo
-watch([buscarTexto, filtroEstado], () => {
-  // El filtrado se hace automáticamente via computed
-})
-
-// Métodos
-const getEstadoClass = (estado) => {
-  return {
-    'badge-pendiente': estado === 'Pendiente',
-    'badge-completada': estado === 'Completada'
-  }
-}
-
-const eliminarRegistro = (id) => {
-  if (confirm('¿Eliminar este registro?')) {
-    registros.value = registros.value.filter(r => r.id !== id)
-  }
-}
-
-const abrirModalNuevo = () => {
-  registroEditando.value = null
-  modalAbierto.value = true
-}
-
-const abrirModalEditar = (registro) => {
-  registroEditando.value = { ...registro }
-  modalAbierto.value = true
-}
-
-const cerrarModal = () => {
-  modalAbierto.value = false
-  registroEditando.value = null
-}
-
-const guardarRegistro = (datos) => {
-  // Validar campos requeridos
-  if (!datos.mascota || !datos.tipo || !datos.raza || !datos.vacuna || 
-      !datos.lote || !datos.aplicada || !datos.proxima || !datos.veterinario) {
-    alert('Debes completar todos los campos')
-    return
-  }
-
-  // Verificar duplicados (solo para nuevos registros)
-  if (!registroEditando.value) {
-    const repetido = registros.value.some(r => 
-      r.mascota.toLowerCase() === datos.mascota.toLowerCase()
-    )
-    if (repetido) {
-      alert('Ya existe un registro con ese nombre de mascota')
-      return
-    }
-  }
-
-  if (registroEditando.value) {
-    // Editar registro existente
-    const index = registros.value.findIndex(r => r.id === registroEditando.value.id)
-    if (index !== -1) {
-      registros.value[index] = { ...datos, id: registroEditando.value.id }
-    }
-  } else {
-    // Nuevo registro
-    registros.value.push({
-      id: registros.value.length + 1,
-      ...datos
-    })
-  }
-
-  cerrarModal()
-}
-
-// Cargar datos iniciales (puedes cargar desde API)
-const cargarRegistrosIniciales = () => {
-  // Ejemplo de datos iniciales
-  registros.value = [
-    {
-      id: 1,
-      mascota: 'Firulais',
-      tipo: 'Perro',
-      raza: 'Golden Retriever',
-      vacuna: 'Antirrábica',
-      lote: 'ABC123',
-      aplicada: '2024-01-15',
-      proxima: '2025-01-15',
-      veterinario: 'Dr. López',
-      estado: 'Completada'
-    }
-  ]
-}
-
-// Inicialización
-cargarRegistrosIniciales()
-</script>
-
 <style scoped>
-.admin-container {
-  padding: 20px;
-}
-
-.admin-header {
-  margin-bottom: 20px;
-}
-
-.admin-controls {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.form-control, .form-select {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.btn-primary {
-  background: #007bff;
-  color: white;
-}
-
-.btn-danger {
-  background: #dc3545;
-  color: white;
-}
-
-.btn-sm {
-  padding: 6px 12px;
-  font-size: 13px;
-}
-
-.cards-grid-2 {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 20px;
-}
-
-.admin-card {
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  padding: 20px;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  transition: box-shadow 0.2s;
-}
-
-.admin-card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-}
-
-.admin-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
-}
-
-.admin-card-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 4px;
-}
-
-.admin-card-tipo {
-  color: #666;
-  font-size: 14px;
-}
-
-.badge {
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.badge-pendiente {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.badge-completada {
-  background: #d4edda;
-  color: #155724;
-}
-
-.admin-card-body {
-  margin-bottom: 16px;
-}
-
-.detail {
-  font-size: 16px;
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 12px;
-}
-
-.admin-card-meta {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 6px;
-}
-
-.admin-card-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.empty-state {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 40px;
-  color: #666;
-  font-size: 16px;
-}
-
-/* Navbar styles */
-.navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 0.85rem 1rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-  margin-bottom: 1.25rem;
-  flex-wrap: wrap;
-}
-
-.nav-logo {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: white;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.nav-logo svg {
-  width: 24px;
-  height: 24px;
-}
-
-.nav-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.nav-links li a {
-  text-decoration: none;
-  color: white;
-  font-weight: 600;
-  padding: 0.4rem 0.6rem;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-}
-
-.nav-links li a:hover,
-.nav-links li a.active {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.nav-actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.btn-outline-white {
-  background: transparent;
-  color: white;
-  border: 1px solid white;
-  cursor: pointer;
-  border-radius: 8px;
-  padding: 0.55rem 0.95rem;
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-
-.btn-outline-white:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.btn-danger {
-  background-color: #dc3545;
-  border: 1px solid #dc3545;
-  cursor: pointer;
-  border-radius: 8px;
-  padding: 0.55rem 0.95rem;
-  font-weight: 600;
-  color: white;
-  transition: all 0.2s ease;
-}
-
-.btn-danger:hover {
-  background-color: #c82333;
-  border-color: #c82333;
-}
-
-.btn-sm {
-  font-size: 0.8rem;
-  padding: 0.4rem 0.7rem;
-}
-
+.modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000; }
+.modal { background:white;border-radius:12px;padding:2rem;width:100%;max-width:500px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+.modal h3 { margin:0 0 1rem;font-size:1.2rem;font-weight:700; }
+.modal-body { display:flex;flex-direction:column;gap:.5rem;margin-bottom:1.5rem; }
+.modal-body label { font-weight:600;font-size:.85rem;color:#555;margin-top:.25rem; }
+.modal-body input,.modal-body select,.modal-body textarea { padding:.5rem .75rem;border:1px solid #ddd;border-radius:6px;font-size:.95rem;width:100%;box-sizing:border-box; }
+.modal-footer { display:flex;gap:.75rem;justify-content:flex-end; }
 </style>
